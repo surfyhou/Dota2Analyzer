@@ -37,6 +37,13 @@ public sealed class OpenDotaClient
                ?? [];
     }
 
+    public async Task<List<RecentMatch>> GetPlayerMatchesAsync(long accountId, int limit, int offset, int lobbyType, CancellationToken cancellationToken)
+    {
+        var url = $"players/{accountId}/matches?limit={limit}&offset={offset}&lobby_type={lobbyType}";
+        return await _httpClient.GetFromJsonAsync<List<RecentMatch>>(url, _jsonOptions, cancellationToken)
+               ?? [];
+    }
+
     public async Task<MatchDetail?> GetMatchDetailAsync(long matchId, CancellationToken cancellationToken)
     {
         return await _httpClient.GetFromJsonAsync<MatchDetail>($"matches/{matchId}", _jsonOptions, cancellationToken);
@@ -45,6 +52,12 @@ public sealed class OpenDotaClient
     public async Task<BenchmarksResponse?> GetHeroBenchmarksAsync(int heroId, CancellationToken cancellationToken)
     {
         return await _httpClient.GetFromJsonAsync<BenchmarksResponse>($"benchmarks?hero_id={heroId}", _jsonOptions, cancellationToken);
+    }
+
+    public async Task<Dictionary<string, ItemConstants>> GetItemConstantsAsync(CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetFromJsonAsync<Dictionary<string, ItemConstants>>("constants/items", _jsonOptions, cancellationToken);
+        return response ?? new Dictionary<string, ItemConstants>(StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<bool> RequestParseAsync(long matchId, CancellationToken cancellationToken)

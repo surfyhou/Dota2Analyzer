@@ -8,6 +8,7 @@ public sealed record RecentMatch
     [JsonPropertyName("player_slot")] public int PlayerSlot { get; init; }
     [JsonPropertyName("radiant_win")] public bool RadiantWin { get; init; }
     [JsonPropertyName("duration")] public int Duration { get; init; }
+    [JsonPropertyName("start_time")] public int StartTime { get; init; }
     [JsonPropertyName("hero_id")] public int HeroId { get; init; }
     [JsonPropertyName("kills")] public int Kills { get; init; }
     [JsonPropertyName("deaths")] public int Deaths { get; init; }

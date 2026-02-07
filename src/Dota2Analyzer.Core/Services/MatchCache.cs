@@ -129,6 +129,24 @@ public sealed class MatchCache
         _logger.LogDebug("Hero stats cache saved ({Count})", stats.Count);
     }
 
+    public async Task<Dictionary<string, ItemConstants>?> GetItemConstantsAsync(TimeSpan? maxAge, CancellationToken cancellationToken)
+    {
+        var row = await GetCacheRowAsync("hero_cache", "cache_key", "item_constants", maxAge, cancellationToken);
+        if (row is null)
+        {
+            _logger.LogDebug("Item constants cache miss");
+            return null;
+        }
+        _logger.LogDebug("Item constants cache hit");
+        return JsonSerializer.Deserialize<Dictionary<string, ItemConstants>>(row, _jsonOptions);
+    }
+
+    public async Task SaveItemConstantsAsync(Dictionary<string, ItemConstants> items, CancellationToken cancellationToken)
+    {
+        await SaveCacheRowAsync("hero_cache", "cache_key", "item_constants", items, cancellationToken);
+        _logger.LogDebug("Item constants cache saved ({Count})", items.Count);
+    }
+
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
         if (_initialized) return;

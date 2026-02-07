@@ -5,6 +5,7 @@ namespace Dota2Analyzer.Core.Models.OpenDota;
 public sealed record Hero
 {
     [JsonPropertyName("id")] public int Id { get; init; }
+    [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
     [JsonPropertyName("localized_name")] public string LocalizedName { get; init; } = string.Empty;
 }
 

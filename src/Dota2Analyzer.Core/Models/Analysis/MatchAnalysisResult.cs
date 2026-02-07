@@ -6,6 +6,8 @@ public sealed record MatchAnalysisResult
     public required string HeroName { get; init; }
     public required bool Won { get; init; }
     public required string ResultText { get; init; }
+    public required int LaneRole { get; init; }
+    public required bool IsPosition1 { get; init; }
     public required string PickRound { get; init; }
     public required int PickIndex { get; init; }
     public required string LaneResult { get; init; }
@@ -19,6 +21,20 @@ public sealed record MatchAnalysisResult
     public required Dictionary<string, string> Statistics { get; init; }
     public required List<string> AllyHeroes { get; init; }
     public required List<string> EnemyHeroes { get; init; }
+    public required List<InventorySnapshot> InventoryTimeline { get; init; }
+}
+
+public sealed record InventorySnapshot
+{
+    public required int Time { get; init; }
+    public required List<InventoryItem> Items { get; init; }
+}
+
+public sealed record InventoryItem
+{
+    public required string Key { get; init; }
+    public required string Name { get; init; }
+    public required string Img { get; init; }
 }
 
 public sealed record AnalysisSummary

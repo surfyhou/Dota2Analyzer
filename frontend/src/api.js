@@ -25,3 +25,31 @@ export async function analyzeMatch(matchId, accountId) {
   })
   return data
 }
+
+export async function preloadMatches(accountId, count = 100) {
+  const { data } = await api.post(`/players/${accountId}/preload`, null, {
+    params: { count }
+  })
+  return data
+}
+
+export async function fetchPreloadStatus(accountId) {
+  const { data } = await api.get(`/players/${accountId}/preload-status`)
+  return data
+}
+
+export function getHeroImageUrl(heroId) {
+  return `${api.defaults.baseURL.replace('/api', '')}/api/assets/heroes/${heroId}`
+}
+
+export function getItemImageUrl(itemKey) {
+  const normalized = String(itemKey || '').replace(/^item_/i, '')
+  return `${api.defaults.baseURL.replace('/api', '')}/api/assets/items/${encodeURIComponent(normalized)}`
+}
+
+export async function fetchCachedMatches(accountId, count = 100) {
+  const { data } = await api.get(`/players/${accountId}/cached-matches`, {
+    params: { count }
+  })
+  return data
+}
