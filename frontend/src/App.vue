@@ -5,7 +5,7 @@
         <div class="header-title">Dota2 一号位复盘</div>
         <div class="header-subtitle">基于 OpenDota 数据生成选人轮次、对线期细节与关键错误建议</div>
       </div>
-      <el-tag type="info" effect="dark">前后端分离 · C# + Vue</el-tag>
+      <el-tag type="info" effect="dark">前后端分离 · Java + Vue</el-tag>
     </div>
 
     <div class="panel">
@@ -53,10 +53,28 @@
             <template #default="props">
               <div style="padding: 12px 24px">
                 <p><strong>对线</strong>：{{ props.row.laneResult }}</p>
-                <p><strong>对位英雄</strong>：{{ props.row.laneOpponentHero || '未知' }}</p>
+                <p><strong>对线组合</strong>：
+                  <span class="hero-row-sm">
+                    <img class="hero-icon-sm" :src="getHeroImg(props.row.heroId)" :title="props.row.heroName" />
+                    <img v-for="id in props.row.laneAllyHeroIds" :key="'la'+id" class="hero-icon-sm" :src="getHeroImg(id)" :title="getHeroNameById(props.row, id, true)" />
+                    <span class="vs-label">vs</span>
+                    <img v-for="id in props.row.laneEnemyHeroIds" :key="'le'+id" class="hero-icon-sm" :src="getHeroImg(id)" :title="getHeroNameById(props.row, id, false)" />
+                  </span>
+                </p>
+                <p v-if="props.row.laneKills || props.row.laneDeaths"><strong>对线击杀</strong>：己方 {{ props.row.laneKills }} 次击杀，被杀 {{ props.row.laneDeaths }} 次</p>
                 <p><strong>选人轮次</strong>：{{ props.row.pickRound }}（第 {{ props.row.pickIndex }} 手）</p>
-                <p><strong>队友阵容</strong>：{{ props.row.allyHeroes.join('、') || '未知' }}</p>
-                <p><strong>敌方阵容</strong>：{{ props.row.enemyHeroes.join('、') || '未知' }}</p>
+                <p><strong>队友阵容</strong>：
+                  <span class="hero-row-sm">
+                    <img v-for="(id, i) in props.row.allyHeroIds" :key="'a'+id" class="hero-icon-sm" :src="getHeroImg(id)" :title="props.row.allyHeroes[i]" />
+                  </span>
+                  <span v-if="!props.row.allyHeroIds?.length" style="color: var(--text-secondary)">未知</span>
+                </p>
+                <p><strong>敌方阵容</strong>：
+                  <span class="hero-row-sm">
+                    <img v-for="(id, i) in props.row.enemyHeroIds" :key="'e'+id" class="hero-icon-sm" :src="getHeroImg(id)" :title="props.row.enemyHeroes[i]" />
+                  </span>
+                  <span v-if="!props.row.enemyHeroIds?.length" style="color: var(--text-secondary)">未知</span>
+                </p>
 
                 <div style="margin: 12px 0 6px">
                   <strong>装备时间轴</strong>
@@ -105,7 +123,14 @@
             </template>
           </el-table-column>
           <el-table-column prop="matchId" label="对局ID" width="140" />
-          <el-table-column prop="heroName" label="英雄" width="140" />
+          <el-table-column label="英雄" width="170">
+            <template #default="props">
+              <div class="hero-cell">
+                <img class="hero-icon-inline" :src="getHeroImg(props.row.heroId)" :alt="props.row.heroName" />
+                <span>{{ props.row.heroName }}</span>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column label="结果" width="100">
             <template #default="props">
               <el-tag :class="props.row.won ? 'tag-win' : 'tag-loss'" effect="dark">
@@ -299,6 +324,12 @@ const getItemsAtTime = (match, seconds = 0) => {
 }
 
 const getHeroImg = (heroId) => getHeroImageUrl(heroId)
+const getHeroNameById = (row, heroId, isAlly) => {
+  const ids = isAlly ? (row.laneAllyHeroIds || []) : (row.laneEnemyHeroIds || [])
+  const names = isAlly ? (row.laneAllyHeroes || []) : (row.laneEnemyHeroes || [])
+  const idx = ids.indexOf(heroId)
+  return idx >= 0 ? names[idx] : ''
+}
 const getItemImg = (item) => {
   if (!item?.key) return ''
   return getItemImageUrl(item.key)

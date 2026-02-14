@@ -1,0 +1,16 @@
+server:
+  port: 5086
+
+spring:
+  application:
+    name: dota2-analyzer
+
+analyzer:
+  cache-only: false
+  disable-benchmarks: false
+  avoid-external-when-cached: true
+
+logging:
+  level:
+    com.dota2analyzer: INFO
+    org.springframework.web: INFO

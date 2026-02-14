@@ -14,7 +14,8 @@ export async function fetchRecentMatches(accountId, limit) {
 
 export async function analyzeRecentMatches(accountId, limit, onlyPos1 = true) {
   const { data } = await api.post(`/players/${accountId}/analyze-recent`, null, {
-    params: { limit, requestParse: true, onlyPos1 }
+    params: { limit, requestParse: true, onlyPos1 },
+    timeout: 120000
   })
   return data
 }
