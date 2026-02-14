@@ -33,4 +33,4 @@ REMOTE
 # 3. Done
 echo "[3/3] Deploy complete!"
 echo ""
-echo "Access: http://${VM_HOST}"
+echo "Access: http://${VM_HOST}:40071"
