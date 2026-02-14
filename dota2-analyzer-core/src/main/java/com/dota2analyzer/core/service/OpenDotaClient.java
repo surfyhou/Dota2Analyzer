@@ -6,15 +6,23 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 public class OpenDotaClient {
 
     private static final Logger log = LoggerFactory.getLogger(OpenDotaClient.class);
+    private static final long MIN_INTERVAL_MS = 1100;
+    private static final int MAX_RETRIES = 3;
+
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private final ReentrantLock rateLock = new ReentrantLock();
+    private volatile long lastRequestTimeMs;
 
     public OpenDotaClient(RestClient.Builder restClientBuilder) {
         this.restClient = restClientBuilder
@@ -25,35 +33,40 @@ public class OpenDotaClient {
     }
 
     public List<Hero> getHeroes() {
-        String json = restClient.get().uri("heroes").retrieve().body(String.class);
+        String json = fetchWithRetry(() ->
+                restClient.get().uri("heroes").retrieve().body(String.class));
         return parseList(json, new TypeReference<>() {});
     }
 
     public List<HeroStats> getHeroStats() {
-        String json = restClient.get().uri("heroStats").retrieve().body(String.class);
+        String json = fetchWithRetry(() ->
+                restClient.get().uri("heroStats").retrieve().body(String.class));
         return parseList(json, new TypeReference<>() {});
     }
 
     public List<RecentMatch> getRecentMatches(long accountId, int limit) {
-        String json = restClient.get()
-                .uri("players/{accountId}/recentMatches?limit={limit}&lobby_type=7", accountId, limit)
-                .retrieve().body(String.class);
+        String json = fetchWithRetry(() ->
+                restClient.get()
+                        .uri("players/{accountId}/recentMatches?limit={limit}&lobby_type=7", accountId, limit)
+                        .retrieve().body(String.class));
         return parseList(json, new TypeReference<>() {});
     }
 
     public List<RecentMatch> getPlayerMatches(long accountId, int limit, int offset, int lobbyType) {
-        String json = restClient.get()
-                .uri("players/{accountId}/matches?limit={limit}&offset={offset}&lobby_type={lobbyType}",
-                        accountId, limit, offset, lobbyType)
-                .retrieve().body(String.class);
+        String json = fetchWithRetry(() ->
+                restClient.get()
+                        .uri("players/{accountId}/matches?limit={limit}&offset={offset}&lobby_type={lobbyType}",
+                                accountId, limit, offset, lobbyType)
+                        .retrieve().body(String.class));
         return parseList(json, new TypeReference<>() {});
     }
 
     public MatchDetail getMatchDetail(long matchId) {
         try {
-            String json = restClient.get()
-                    .uri("matches/{matchId}", matchId)
-                    .retrieve().body(String.class);
+            String json = fetchWithRetry(() ->
+                    restClient.get()
+                            .uri("matches/{matchId}", matchId)
+                            .retrieve().body(String.class));
             if (json == null) return null;
             return objectMapper.readValue(json, MatchDetail.class);
         } catch (Exception e) {
@@ -64,9 +77,10 @@ public class OpenDotaClient {
 
     public BenchmarksResponse getHeroBenchmarks(int heroId) {
         try {
-            String json = restClient.get()
-                    .uri("benchmarks?hero_id={heroId}", heroId)
-                    .retrieve().body(String.class);
+            String json = fetchWithRetry(() ->
+                    restClient.get()
+                            .uri("benchmarks?hero_id={heroId}", heroId)
+                            .retrieve().body(String.class));
             if (json == null) return null;
             return objectMapper.readValue(json, BenchmarksResponse.class);
         } catch (Exception e) {
@@ -77,7 +91,8 @@ public class OpenDotaClient {
 
     public Map<String, ItemConstants> getItemConstants() {
         try {
-            String json = restClient.get().uri("constants/items").retrieve().body(String.class);
+            String json = fetchWithRetry(() ->
+                    restClient.get().uri("constants/items").retrieve().body(String.class));
             if (json == null) return new HashMap<>();
             return objectMapper.readValue(json, new TypeReference<>() {});
         } catch (Exception e) {
@@ -88,12 +103,56 @@ public class OpenDotaClient {
 
     public boolean requestParse(long matchId) {
         try {
-            restClient.post().uri("request/{matchId}", matchId).retrieve().toBodilessEntity();
+            fetchWithRetry(() -> {
+                restClient.post().uri("request/{matchId}", matchId).retrieve().toBodilessEntity();
+                return "";
+            });
             return true;
         } catch (Exception e) {
             log.warn("Failed to request parse for match {}", matchId, e);
             return false;
         }
+    }
+
+    private void throttle() {
+        rateLock.lock();
+        try {
+            long now = System.currentTimeMillis();
+            long elapsed = now - lastRequestTimeMs;
+            if (elapsed < MIN_INTERVAL_MS) {
+                long wait = MIN_INTERVAL_MS - elapsed;
+                log.debug("Rate limit: waiting {}ms", wait);
+                Thread.sleep(wait);
+            }
+            lastRequestTimeMs = System.currentTimeMillis();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            rateLock.unlock();
+        }
+    }
+
+    private String fetchWithRetry(Supplier<String> request) {
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            throttle();
+            try {
+                return request.get();
+            } catch (HttpClientErrorException.TooManyRequests e) {
+                if (attempt == MAX_RETRIES) {
+                    log.error("OpenDota 429 after {} retries, giving up", MAX_RETRIES);
+                    throw e;
+                }
+                long backoff = (long) Math.pow(2, attempt + 1) * 1000;
+                log.warn("OpenDota 429, retry {}/{} after {}ms", attempt + 1, MAX_RETRIES, backoff);
+                try {
+                    Thread.sleep(backoff);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
+        return null;
     }
 
     private <T> List<T> parseList(String json, TypeReference<List<T>> typeRef) {

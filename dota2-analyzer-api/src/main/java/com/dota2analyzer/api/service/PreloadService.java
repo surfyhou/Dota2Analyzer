@@ -115,7 +115,7 @@ public class PreloadService {
                 status.setMessage("已完成 " + status.getCompleted() + "/" + status.getTotal());
 
                 try {
-                    Thread.sleep(250);
+                    Thread.sleep(1200);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;

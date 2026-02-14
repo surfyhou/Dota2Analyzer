@@ -156,6 +156,21 @@ public class MatchCache {
         saveCacheRow("hero_cache", "cache_key", "item_constants", items);
     }
 
+    public BenchmarksResponse getBenchmark(int heroId, Duration maxAge) {
+        String json = getCacheRow("benchmark_cache", "hero_id", (long) heroId, maxAge);
+        if (json == null) return null;
+        try {
+            return objectMapper.readValue(json, BenchmarksResponse.class);
+        } catch (Exception e) {
+            log.warn("Failed to parse benchmark from cache for hero {}", heroId, e);
+            return null;
+        }
+    }
+
+    public void saveBenchmark(int heroId, BenchmarksResponse benchmark) {
+        saveCacheRow("benchmark_cache", "hero_id", (long) heroId, benchmark);
+    }
+
     private void ensureInitialized() {
         if (initialized) return;
         synchronized (this) {
@@ -171,6 +186,9 @@ public class MatchCache {
                 stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS hero_cache (" +
                     "cache_key TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL)");
+                stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS benchmark_cache (" +
+                    "hero_id INTEGER PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL)");
                 initialized = true;
             } catch (Exception e) {
                 log.error("Failed to initialize cache database", e);

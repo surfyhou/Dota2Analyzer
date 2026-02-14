@@ -186,7 +186,13 @@ public class MatchAnalyzer {
 
         List<String> benchmarkNotes = new ArrayList<>(laning.benchmarkNotes);
         if (!disableBenchmarks && !cacheOnly && (!avoidExternalWhenCached || !fromCache)) {
-            BenchmarksResponse heroBenchmarks = client.getHeroBenchmarks(player.getHeroId());
+            BenchmarksResponse heroBenchmarks = cache.getBenchmark(player.getHeroId(), Duration.ofDays(1));
+            if (heroBenchmarks == null) {
+                heroBenchmarks = client.getHeroBenchmarks(player.getHeroId());
+                if (heroBenchmarks != null) {
+                    cache.saveBenchmark(player.getHeroId(), heroBenchmarks);
+                }
+            }
             List<String> heroBenchmarkNotes = buildHeroBenchmarkNotes(match, heroBenchmarks);
             benchmarkNotes.addAll(heroBenchmarkNotes);
         }
