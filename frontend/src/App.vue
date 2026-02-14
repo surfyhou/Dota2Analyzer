@@ -208,10 +208,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { analyzeRecentMatches, preloadMatches, fetchPreloadStatus, getHeroImageUrl, getItemImageUrl, fetchCachedMatches } from './api'
 
-const accountId = ref('')
+const DEFAULT_ACCOUNT_ID = '237390446'
+
+const accountId = ref(DEFAULT_ACCOUNT_ID)
 const limit = ref(20)
 const onlyPos1 = ref(true)
 const loading = ref(false)
@@ -353,6 +355,10 @@ watch(view, async (val) => {
     await loadCachedMatches()
     await refreshStatus()
   }
+})
+
+onMounted(() => {
+  runAnalysis()
 })
 
 onBeforeUnmount(() => {
