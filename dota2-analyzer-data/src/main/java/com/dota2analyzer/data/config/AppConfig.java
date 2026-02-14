@@ -7,32 +7,43 @@ import com.dota2analyzer.data.service.DemDownloadService;
 import com.dota2analyzer.data.service.HeroImageCache;
 import com.dota2analyzer.data.service.ItemImageCache;
 import com.dota2analyzer.data.service.PreloadService;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Configuration
+@ConfigurationProperties(prefix = "analyzer")
 public class AppConfig {
 
-    @Value("${analyzer.cache-only:false}")
-    private boolean cacheOnly;
+    private static final Logger log = LoggerFactory.getLogger(AppConfig.class);
 
-    @Value("${analyzer.db.url}")
-    private String dbUrl;
+    private boolean cacheOnly = false;
+    private List<Long> permanentAccounts = new ArrayList<>();
+    private Db db = new Db();
 
-    @Value("${analyzer.db.user}")
-    private String dbUser;
+    public static class Db {
+        private String url;
+        private String user;
+        private String password;
+        public String getUrl() { return url; }
+        public void setUrl(String url) { this.url = url; }
+        public String getUser() { return user; }
+        public void setUser(String user) { this.user = user; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+    }
 
-    @Value("${analyzer.db.password}")
-    private String dbPassword;
-
-    @Value("${analyzer.permanent-accounts:}")
-    private List<Long> permanentAccountsList;
+    public void setCacheOnly(boolean cacheOnly) { this.cacheOnly = cacheOnly; }
+    public void setPermanentAccounts(List<Long> permanentAccounts) { this.permanentAccounts = permanentAccounts; }
+    public void setDb(Db db) { this.db = db; }
 
     @Bean
     public OpenDotaClient openDotaClient() {
@@ -41,10 +52,9 @@ public class AppConfig {
 
     @Bean
     public MatchCache matchCache() {
-        Set<Long> permanentAccounts = permanentAccountsList != null
-                ? permanentAccountsList.stream().collect(Collectors.toSet())
-                : Set.of();
-        return new MatchCache(dbUrl, dbUser, dbPassword, permanentAccounts);
+        Set<Long> accounts = permanentAccounts != null ? new HashSet<>(permanentAccounts) : Set.of();
+        log.info("MatchCache permanent accounts: {}", accounts);
+        return new MatchCache(db.getUrl(), db.getUser(), db.getPassword(), accounts);
     }
 
     @Bean
