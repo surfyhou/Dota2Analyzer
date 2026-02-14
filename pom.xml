@@ -28,21 +28,16 @@
     </properties>
 
     <modules>
-        <module>dota2-analyzer-core</module>
-        <module>dota2-analyzer-clarity</module>
-        <module>dota2-analyzer-api</module>
+        <module>dota2-analyzer-common</module>
+        <module>dota2-analyzer-data</module>
+        <module>dota2-analyzer-analysis</module>
     </modules>
 
     <dependencyManagement>
         <dependencies>
             <dependency>
                 <groupId>com.dota2analyzer</groupId>
-                <artifactId>dota2-analyzer-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.dota2analyzer</groupId>
-                <artifactId>dota2-analyzer-clarity</artifactId>
+                <artifactId>dota2-analyzer-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

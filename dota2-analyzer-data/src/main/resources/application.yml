@@ -1,0 +1,15 @@
+server:
+  port: 5087
+spring:
+  application:
+    name: dota2-data-service
+analyzer:
+  permanent-accounts:
+    - 237390446
+  db:
+    url: ${ANALYZER_DB_URL:jdbc:mysql://localhost:3306/dota2analyzer?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    user: ${ANALYZER_DB_USER:root}
+    password: ${ANALYZER_DB_PASSWORD:dota2analyzer}
+logging:
+  level:
+    com.dota2analyzer: INFO

@@ -1,0 +1,18 @@
+# Stage 1: Build with Maven
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY pom.xml .
+COPY dota2-analyzer-common/pom.xml dota2-analyzer-common/
+COPY dota2-analyzer-data/pom.xml dota2-analyzer-data/
+COPY dota2-analyzer-analysis/pom.xml dota2-analyzer-analysis/
+RUN mvn dependency:go-offline -B -pl dota2-analyzer-common,dota2-analyzer-analysis -am
+COPY dota2-analyzer-common/src dota2-analyzer-common/src
+COPY dota2-analyzer-analysis/src dota2-analyzer-analysis/src
+RUN mvn package -DskipTests -B -pl dota2-analyzer-common,dota2-analyzer-analysis -am
+
+# Stage 2: Run
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY --from=build /app/dota2-analyzer-analysis/target/*.jar app.jar
+EXPOSE 5086
+ENTRYPOINT ["java", "-jar", "app.jar"]
