@@ -124,8 +124,9 @@ public class PlayerController {
                 .limit(take)
                 .collect(Collectors.toList());
 
+        Duration matchTtl = cache.isPermanentAccount(accountId) ? null : Duration.ofDays(30);
         for (RecentMatch match : sorted) {
-            MatchDetail detail = cache.getMatchDetail(match.getMatchId(), Duration.ofDays(30));
+            MatchDetail detail = cache.getMatchDetail(match.getMatchId(), matchTtl);
             List<Integer> radiantHeroes = new ArrayList<>();
             List<Integer> direHeroes = new ArrayList<>();
             boolean radiantWin = match.isRadiantWin();

@@ -54,7 +54,8 @@ public class MatchController {
             client.requestParse(matchId);
         }
 
-        MatchDetail detail = cache.getMatchDetail(matchId, Duration.ofDays(7));
+        Duration matchTtl = cache.isPermanentAccount(accountId) ? null : Duration.ofDays(7);
+        MatchDetail detail = cache.getMatchDetail(matchId, matchTtl);
         if (detail == null) {
             detail = client.getMatchDetail(matchId);
             if (detail != null) {

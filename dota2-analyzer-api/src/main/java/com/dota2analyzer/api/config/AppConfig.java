@@ -15,6 +15,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 @Configuration
 public class AppConfig {
 
@@ -27,6 +31,18 @@ public class AppConfig {
     @Value("${analyzer.avoid-external-when-cached:true}")
     private boolean avoidExternalWhenCached;
 
+    @Value("${analyzer.db.url}")
+    private String dbUrl;
+
+    @Value("${analyzer.db.user}")
+    private String dbUser;
+
+    @Value("${analyzer.db.password}")
+    private String dbPassword;
+
+    @Value("${analyzer.permanent-accounts:}")
+    private List<Long> permanentAccountsList;
+
     @Bean
     public OpenDotaClient openDotaClient() {
         return new OpenDotaClient(RestClient.builder());
@@ -34,7 +50,10 @@ public class AppConfig {
 
     @Bean
     public MatchCache matchCache() {
-        return new MatchCache();
+        Set<Long> permanentAccounts = permanentAccountsList != null
+                ? permanentAccountsList.stream().collect(Collectors.toSet())
+                : Set.of();
+        return new MatchCache(dbUrl, dbUser, dbPassword, permanentAccounts);
     }
 
     @Bean

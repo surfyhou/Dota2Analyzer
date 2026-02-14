@@ -1,4 +1,18 @@
 services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: dota2analyzer
+      MYSQL_DATABASE: dota2analyzer
+    volumes:
+      - mysqldata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -7,6 +21,13 @@ services:
       - "40072:5086"
     volumes:
       - dota2data:/root/.dota2analyzer
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ANALYZER_DB_URL: jdbc:mysql://mysql:3306/dota2analyzer?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      ANALYZER_DB_USER: root
+      ANALYZER_DB_PASSWORD: dota2analyzer
     restart: unless-stopped
 
   frontend:
@@ -21,3 +42,4 @@ services:
 
 volumes:
   dota2data:
+  mysqldata:

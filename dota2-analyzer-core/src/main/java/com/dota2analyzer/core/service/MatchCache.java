@@ -4,53 +4,48 @@ import com.dota2analyzer.core.model.opendota.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.*;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class MatchCache {
 
     private static final Logger log = LoggerFactory.getLogger(MatchCache.class);
-    private final String dbPath;
     private final ObjectMapper objectMapper;
+    private final HikariDataSource dataSource;
+    private final Set<Long> permanentAccounts;
     private volatile boolean initialized;
 
-    public MatchCache() {
-        this(null);
-    }
-
-    public MatchCache(String dbPath) {
+    public MatchCache(String jdbcUrl, String user, String password, Set<Long> permanentAccounts) {
         this.objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        if (dbPath != null) {
-            this.dbPath = dbPath;
-        } else {
-            String home = System.getProperty("user.home");
-            Path folder = Paths.get(home, ".dota2analyzer");
-            try {
-                Files.createDirectories(folder);
-            } catch (Exception e) {
-                log.warn("Failed to create cache directory", e);
-            }
-            this.dbPath = folder.resolve("match-cache.db").toString();
-        }
+        this.permanentAccounts = permanentAccounts != null ? permanentAccounts : Set.of();
+
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(jdbcUrl);
+        config.setUsername(user);
+        config.setPassword(password);
+        config.setMaximumPoolSize(5);
+        config.setConnectionTimeout(30000);
+        this.dataSource = new HikariDataSource(config);
+    }
+
+    public boolean isPermanentAccount(long accountId) {
+        return permanentAccounts.contains(accountId);
     }
 
     public MatchDetail getMatchDetail(long matchId, Duration maxAge) {
         ensureInitialized();
-        try (Connection conn = getConnection()) {
+        try (Connection conn = dataSource.getConnection()) {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT json, updated_at FROM match_cache WHERE match_id = ?");
+                    "SELECT json_data, updated_at FROM match_cache WHERE match_id = ?");
             stmt.setLong(1, matchId);
             ResultSet rs = stmt.executeQuery();
             if (!rs.next()) {
@@ -73,17 +68,15 @@ public class MatchCache {
 
     public void saveMatchDetail(long matchId, MatchDetail detail) {
         ensureInitialized();
-        try (Connection conn = getConnection()) {
+        try (Connection conn = dataSource.getConnection()) {
             String json = objectMapper.writeValueAsString(detail);
             String now = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO match_cache(match_id, json, updated_at) VALUES (?, ?, ?) " +
-                    "ON CONFLICT(match_id) DO UPDATE SET json = ?, updated_at = ?");
+                    "INSERT INTO match_cache(match_id, json_data, updated_at) VALUES (?, ?, ?) " +
+                    "ON DUPLICATE KEY UPDATE json_data = VALUES(json_data), updated_at = VALUES(updated_at)");
             stmt.setLong(1, matchId);
             stmt.setString(2, json);
             stmt.setString(3, now);
-            stmt.setString(4, json);
-            stmt.setString(5, now);
             stmt.executeUpdate();
             log.debug("Match cache saved: {}", matchId);
         } catch (Exception e) {
@@ -92,7 +85,8 @@ public class MatchCache {
     }
 
     public List<RecentMatch> getRecentMatches(long accountId, Duration maxAge) {
-        String json = getCacheRow("recent_matches_cache", "account_id", accountId, maxAge);
+        Duration effectiveMaxAge = isPermanentAccount(accountId) ? null : maxAge;
+        String json = getCacheRow("recent_matches_cache", "account_id", accountId, effectiveMaxAge);
         if (json == null) {
             log.debug("Recent matches cache miss: {}", accountId);
             return null;
@@ -175,21 +169,22 @@ public class MatchCache {
         if (initialized) return;
         synchronized (this) {
             if (initialized) return;
-            try (Connection conn = getConnection()) {
+            try (Connection conn = dataSource.getConnection()) {
                 Statement stmt = conn.createStatement();
                 stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS match_cache (" +
-                    "match_id INTEGER PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL)");
+                    "match_id BIGINT PRIMARY KEY, json_data LONGTEXT NOT NULL, updated_at VARCHAR(64) NOT NULL)");
                 stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS recent_matches_cache (" +
-                    "account_id INTEGER PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL)");
+                    "account_id BIGINT PRIMARY KEY, json_data LONGTEXT NOT NULL, updated_at VARCHAR(64) NOT NULL)");
                 stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS hero_cache (" +
-                    "cache_key TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL)");
+                    "cache_key VARCHAR(64) PRIMARY KEY, json_data LONGTEXT NOT NULL, updated_at VARCHAR(64) NOT NULL)");
                 stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS benchmark_cache (" +
-                    "hero_id INTEGER PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL)");
+                    "hero_id INT PRIMARY KEY, json_data LONGTEXT NOT NULL, updated_at VARCHAR(64) NOT NULL)");
                 initialized = true;
+                log.info("MySQL cache tables initialized");
             } catch (Exception e) {
                 log.error("Failed to initialize cache database", e);
             }
@@ -198,9 +193,9 @@ public class MatchCache {
 
     private String getCacheRow(String table, String keyColumn, Object key, Duration maxAge) {
         ensureInitialized();
-        try (Connection conn = getConnection()) {
+        try (Connection conn = dataSource.getConnection()) {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT json, updated_at FROM " + table + " WHERE " + keyColumn + " = ?");
+                    "SELECT json_data, updated_at FROM " + table + " WHERE " + keyColumn + " = ?");
             if (key instanceof Long) {
                 stmt.setLong(1, (Long) key);
             } else {
@@ -220,12 +215,12 @@ public class MatchCache {
 
     private void saveCacheRow(String table, String keyColumn, Object key, Object payload) {
         ensureInitialized();
-        try (Connection conn = getConnection()) {
+        try (Connection conn = dataSource.getConnection()) {
             String json = objectMapper.writeValueAsString(payload);
             String now = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO " + table + "(" + keyColumn + ", json, updated_at) VALUES (?, ?, ?) " +
-                    "ON CONFLICT(" + keyColumn + ") DO UPDATE SET json = ?, updated_at = ?");
+                    "INSERT INTO " + table + "(" + keyColumn + ", json_data, updated_at) VALUES (?, ?, ?) " +
+                    "ON DUPLICATE KEY UPDATE json_data = VALUES(json_data), updated_at = VALUES(updated_at)");
             if (key instanceof Long) {
                 stmt.setLong(1, (Long) key);
             } else {
@@ -233,16 +228,10 @@ public class MatchCache {
             }
             stmt.setString(2, json);
             stmt.setString(3, now);
-            stmt.setString(4, json);
-            stmt.setString(5, now);
             stmt.executeUpdate();
         } catch (Exception e) {
             log.warn("Failed to save cache row to {}", table, e);
         }
-    }
-
-    private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection("jdbc:sqlite:" + dbPath);
     }
 
     private boolean isExpired(String updatedAtStr, Duration maxAge) {

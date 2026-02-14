@@ -72,7 +72,8 @@ public class PreloadService {
 
             for (RecentMatch match : matches) {
                 try {
-                    MatchDetail detail = cache.getMatchDetail(match.getMatchId(), Duration.ofDays(7));
+                    Duration matchTtl = cache.isPermanentAccount(status.getAccountId()) ? null : Duration.ofDays(7);
+                    MatchDetail detail = cache.getMatchDetail(match.getMatchId(), matchTtl);
                     if (detail == null) {
                         detail = client.getMatchDetail(match.getMatchId());
                         if (detail != null) {

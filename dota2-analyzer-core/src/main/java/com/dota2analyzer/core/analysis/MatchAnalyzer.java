@@ -136,7 +136,8 @@ public class MatchAnalyzer {
 
     public MatchAnalysisResult analyzeMatch(RecentMatch match, long accountId, boolean requestParse, boolean onlyPos1) {
         heroData.ensureLoaded();
-        MatchDetail detail = cache.getMatchDetail(match.getMatchId(), Duration.ofDays(7));
+        Duration matchTtl = cache.isPermanentAccount(accountId) ? null : Duration.ofDays(7);
+        MatchDetail detail = cache.getMatchDetail(match.getMatchId(), matchTtl);
         boolean fromCache = detail != null;
         if (detail == null) {
             if (cacheOnly) {
