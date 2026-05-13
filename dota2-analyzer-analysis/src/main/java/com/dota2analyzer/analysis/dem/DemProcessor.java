@@ -11,6 +11,7 @@ import skadistats.clarity.processor.entities.Entities;
 import skadistats.clarity.processor.entities.UsesEntities;
 import skadistats.clarity.processor.gameevents.OnCombatLogEntry;
 import skadistats.clarity.processor.runner.Context;
+import skadistats.clarity.processor.runner.Insert;
 import skadistats.clarity.processor.runner.SimpleRunner;
 import skadistats.clarity.processor.reader.OnTickEnd;
 import skadistats.clarity.source.MappedFileSource;
@@ -32,14 +33,15 @@ public class DemProcessor {
     private final List<AbilityUsage> abilityUsages = new ArrayList<>();
 
     private int currentTick = 0;
+
+    @Insert
     private Context ctx;
 
     public DemParseResult parse(Path demFile, long matchId) {
         log.info("Starting DEM parse for match {} from {}", matchId, demFile);
 
-        try {
-            SimpleRunner runner = new SimpleRunner(new MappedFileSource(demFile.toString()));
-            runner.runWith(this);
+        try (MappedFileSource source = new MappedFileSource(demFile.toString())) {
+            new SimpleRunner(source).runWith(this);
         } catch (Exception e) {
             log.error("Failed to parse DEM file for match {}", matchId, e);
         }
@@ -58,8 +60,7 @@ public class DemProcessor {
     }
 
     @OnTickEnd
-    public void onTickEnd(Context ctx, boolean synthetic) {
-        this.ctx = ctx;
+    public void onTickEnd(boolean synthetic) {
         currentTick = ctx.getTick();
 
         if (currentTick % SAMPLE_INTERVAL_TICKS != 0) return;
@@ -110,7 +111,7 @@ public class DemProcessor {
     }
 
     @OnCombatLogEntry
-    public void onCombatLogEntry(Context ctx, CombatLogEntry cle) {
+    public void onCombatLogEntry(CombatLogEntry cle) {
         try {
             String type = cle.getType().name();
             String attacker = cle.getAttackerName();
